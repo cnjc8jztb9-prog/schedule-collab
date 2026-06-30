@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日程表 · 周视图</title>
+<style>
+  :root {
+    --bg: #f8f9fb;
+    --card: #ffffff;
+    --border: #e5e8ec;
+    --text: #2c3e50;
+    --text-secondary: #7f8c9b;
+    --primary: #4a90d9;
+    --primary-light: #eaf2fb;
+    --accent: #f0f4f8;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
+    --time-column: 80px;
+    --row-height: 80px;
+    --hour-start: 8;
+    --hour-end: 21;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px 40px;
+  }
+
+  /* ========== Header ========== */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .app-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+
+  .week-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .week-nav button {
+    width: 34px; height: 34px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+  }
+  .week-nav button:hover { background: var(--accent); color: var(--text); border-color: #ccd3db; }
+  
+  .week-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 180px;
+    text-align: center;
+  }
+
+  .btn {
+    padding: 7px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .btn:hover { background: var(--accent); border-color: #ccd3db; }
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+  .btn-primary:hover { background: #3a7bc8; border-color: #3a7bc8; }
+  .btn-smart {
+    background: #f0e6f6;
+    color: #7b4fa0;
+    border-color: #d4c0e8;
+  }
+  .btn-smart:hover { background: #e8d8f2; border-color: #c4a8dc; }
+  .btn-popout {
+    background: #fff3e0;
+    color: #e67e22;
+    border-color: #ffe0b2;
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  .btn-popout:hover { background: #ffe0b2; border-color: #ffcc80; }
+  .btn-today { font-weight: 600; }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ========== Grid Container ========== */
+  .grid-wrapper {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .grid-scroll {
+    overflow-y: auto;
+    max-height: calc(100vh - 140px);
+    position: relative;
+  }
+
+  .grid-table {
+    display: grid;
+    grid-template-columns: var(--time-column) repeat(7, 1fr);
+    position: relative;
+  }
+
+  /* Day headers */
+  .day-header {
+    padding: 14px 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+    background: #fafbfc;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .day-header:first-child { border-right: 1px solid var(--border); }
+  .day-header .day-name { color: var(--text-secondary); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .day-header .day-num { font-size: 20px; font-weight: 600; color: var(--text); margin-top: 2px; }
+  .day-header.today { background: var(--primary-light); }
+  .day-header.today .day-num { color: var(--primary); }
+
+  /* Time column */
+  .time-cell {
+    padding: 0 10px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid #edf0f4;
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding-top: 4px;
+    height: var(--row-height);
+    position: relative;
+  }
+
+  /* Day cells */
+  .day-cell {
+    border-right: 1px solid #edf0f4;
+    border-bottom: 1px solid #edf0f4;
+    height: var(--row-height);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .day-cell:hover { background: #f5f7fa; }
+  .day-cell:nth-child(8n) { border-right: none; }
+  .day-cell.today-col { background: #fafcff; }
+
+  /* ========== Events Layer ========== */
+  .events-layer {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* ===== Normal card (30min+) : time stacked left + title wraps right ===== */
+  .event-block {
+    position: absolute;
+    pointer-events: auto;
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-size: 12px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: box-shadow 0.15s, transform 0.15s;
+    border-left: 3px solid;
+    display: flex;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .event-block:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-1px);
+    z-index: 10;
+  }
+  /* Left: time column */
+  .evt-time-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 32px;
+    line-height: 1.2;
+  }
+  .evt-time-col .t-start,
+  .evt-time-col .t-end {
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .evt-time-col .t-dash {
+    font-size: 9px;
+    opacity: 0.5;
+    line-height: 1;
+  }
+  /* Right: title + note */
+  .evt-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+  }
+  .evt-body .event-title {
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1.35;
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+  .evt-body .event-note {
+    font-size: 10px;
+    opacity: 0.65;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Has note: title 2-char wrap left + separator + note right */
+  .event-block.has-note .evt-body {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+  }
+  .event-block.has-note .event-title {
+    max-width: 3em;
+    word-break: break-all;
+    overflow-wrap: break-word;
+    flex-shrink: 0;
+    line-height: 1.4;
+    padding-right: 4px;
+    border-right: 1px solid;
+    margin-right: 4px;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+  }
+  .event-block.has-note .event-note {
+    flex: 1;
+    min-width: 0;
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+    font-size: 10px;
+    line-height: 1.35;
+    display: flex;
+    align-items: center;
+  }
+
+  /* ===== Overlap card : no notes, compact time (start-time only) ===== */
+  .event-block.is-overlap { padding: 2px 3px; gap: 2px; }
+  .event-block.is-overlap .evt-time-col {
+    flex-direction: row;
+    min-width: auto;
+    gap: 0;
+  }
+  .event-block.is-overlap .t-start { font-size: 9.5px; }
+  .event-block.is-overlap .t-dash,
+  .event-block.is-overlap .t-end { display: none; }
+  .event-block.is-overlap .event-title {
+    word-break: break-all;
+    overflow-wrap: break-word;
+    line-height: 1.4;
+    font-size: 11px;
+    flex: 1;
+    min-width: 0;
+  }
+  .event-block.is-overlap .event-note { display: none; }
+  .event-block.is-overlap .evt-body { align-items: center; }
+  .event-block.is-overlap .weekly-tag::after {
+    top: 1px; right: 2px; font-size: 7px; padding: 0 2px;
+  }
+
+  /* ===== Compact card (15min) : inline horizontal ===== */
+  .event-block.compact {
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+  }
+  .event-block.compact .evt-time-col {
+    flex-direction: row;
+    gap: 0;
+    min-width: auto;
+  }
+  .event-block.compact .t-start { font-size: 10.5px; }
+  .event-block.compact .t-dash { margin: 0 1px; }
+  .event-block.compact .t-end { font-size: 10.5px; }
+  .event-block.compact .evt-body { flex-direction: row; align-items: center; }
+  .event-block.compact .event-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-block.compact .event-note { display: none; }
+
+  .event-block.weekly-tag::after {
+    content: '每';
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    font-size: 9px;
+    background: rgba(255,255,255,0.5);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  /* ========== Modal ========== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s;
+  }
+  #modalOverlay { z-index: 110; }
+  #smartModalOverlay { z-index: 100; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .modal {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    width: 400px;
+    max-width: 95vw;
+    animation: slideUp 0.2s;
+    overflow: hidden;
+  }
+  .confirm-dialog {
+    width: 360px;
+    padding: 16px 20px 12px;
+  }
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-header h3 { font-size: 16px; font-weight: 600; }
+  .modal-close {
+    width: 30px; height: 30px;
+    border: none; background: none;
+    font-size: 18px; cursor: pointer;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-close:hover { background: var(--accent); }
+
+  .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+    background: #fafbfc;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    border-color: var(--primary);
+    background: #fff;
+  }
+  .form-group textarea { resize: vertical; min-height: 50px; }
+
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+
+  .color-options {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .color-dot {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .color-dot:hover { transform: scale(1.15); }
+  .color-dot.active { border-color: var(--text); box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--text); }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; }
+  .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+  .checkbox-row label { font-size: 13px; cursor: pointer; font-weight: 500; }
+
+  /* Weekday multi-chip */
+  .weekday-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .wd-chip { position: relative; cursor: pointer; }
+  .wd-chip input { position: absolute; opacity: 0; pointer-events: none; }
+  .wd-chip span {
+    display: block; padding: 5px 12px; border-radius: 14px;
+    font-size: 12px; font-weight: 500; border: 1.5px solid var(--border);
+    background: #fff; transition: all 0.15s; user-select: none;
+    color: var(--text-secondary);
+  }
+  .wd-chip input:checked + span {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+  .wd-chip:hover span { border-color: var(--primary); }
+
+  .modal-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .btn-danger {
+    background: #fee;
+    color: #d32f2f;
+    border-color: #fcc;
+  }
+  .btn-danger:hover { background: #fdd; border-color: #faa; }
+
+  /* ========== Smart Input Modal ========== */
+  .modal-wide { width: 520px; }
+  .smart-textarea {
+    width: 100%; min-height: 100px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px; font-family: inherit;
+    resize: vertical; outline: none;
+    background: #fafbfc;
+    line-height: 1.6;
+  }
+  .smart-textarea:focus { border-color: var(--primary); background: #fff; }
+  .smart-hint {
+    font-size: 11px; color: var(--text-secondary);
+    margin-top: 6px; line-height: 1.5;
+  }
+  .parse-results { margin-top: 10px; display: none; }
+  .parse-results table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  .parse-results th {
+    text-align: left; padding: 6px 8px;
+    font-size: 11px; color: var(--text-secondary);
+    font-weight: 600; border-bottom: 1px solid var(--border);
+  }
+  .parse-results td {
+    padding: 7px 8px; border-bottom: 1px solid #f0f0f5;
+    vertical-align: middle;
+  }
+  .parse-results tr { cursor: pointer; }
+  .parse-results tr:hover td { background: #fafcff; }
+  .parse-results td:last-child { white-space: nowrap; }
+  .parse-row-del {
+    display: inline-block; width: 22px; height: 22px; line-height: 22px;
+    text-align: center; border-radius: 50%; color: #ccc;
+    font-size: 14px; font-weight: 700; cursor: pointer; margin-left: 2px;
+    background: transparent; border: none; transition: all 0.15s;
+  }
+  .parse-row-del:hover { color: #fff; background: #e07b7b; }
+  .parse-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 600;
+  }
+  .parse-tag.weekly { background: #e8f0fe; color: #4a90d9; }
+  .parse-tag.once { background: #f0f0f5; color: #888; }
+
+  /* ========== Responsive ========== */
+  @media (max-width: 768px) {
+    :root { --time-column: 52px; --row-height: 60px; }
+    .app { padding: 12px 8px 24px; }
+    .header { flex-direction: column; align-items: stretch; }
+    .header-right { justify-content: flex-end; }
+    .day-header { padding: 8px 4px; font-size: 11px; }
+    .day-header .day-num { font-size: 16px; }
+    .event-block { padding: 2px 4px; font-size: 10px; }
+    .evt-body .event-title { font-size: 10px; }
+    .evt-time-col .t-start,
+    .evt-time-col .t-end { font-size: 9px; }
+    .event-block.compact { padding: 1px 3px; }
+    .event-block.compact .t-start,
+    .event-block.compact .t-end { font-size: 8px; }
+  }
+
+  /* ========== Empty State ========== */
+  .empty-hint {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--text-secondary);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .empty-hint .icon { font-size: 40px; margin-bottom: 8px; opacity: 0.5; }
+  .empty-hint .text { font-size: 13px; }
+
+  .hidden { display: none !important; }
+
+  /* Tooltip for delete confirm */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 10px 24px;
+    border-radius: 20px;
+    font-size: 13px;
+    z-index: 200;
+    animation: toastIn 0.3s, toastOut 0.3s 1.5s forwards;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+  @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <span class="app-title">日程表</span>
+      <span id="connStatus" style="font-size:11px;margin-left:8px;padding:3px 10px;border-radius:10px;background:#f0f0f5;color:#888;font-weight:500;">● 连接中...</span>
+      <div class="week-nav">
+        <button onclick="navWeek(-1)" title="上一周">◀</button>
+        <span class="week-label" id="weekLabel"></span>
+        <button onclick="navWeek(1)" title="下一周">▶</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-today" onclick="goToday()">今天</button>
+      <button class="btn btn-smart" onclick="openSmartModal()">智能添加</button>
+      <button class="btn btn-primary" onclick="openAddModal()">+ 添加日程</button>
+      <button class="btn btn-popout" onclick="openStandalone()" id="btnStandalone" title="以独立窗口打开，无地址栏和标签页">📌 独立窗口</button>
+    </div>
+  </div>
+
+  <!-- Grid -->
+  <div class="grid-wrapper">
+    <div class="grid-scroll" id="gridScroll">
+      <div class="grid-table" id="gridTable">
+        <!-- Filled by JS -->
+      </div>
+      <div class="events-layer" id="eventsLayer"></div>
+      <div class="empty-hint" id="emptyHint">
+        <div class="icon">📅</div>
+        <div class="text">点击空白格子添加日程</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">添加日程</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>日程名称</label>
+        <input type="text" id="evtTitle" placeholder="例：周例会 / 产品评审" maxlength="40">
+      </div>
+      <div class="form-group">
+        <label>日期 <span id="dateWeekday" style="font-weight:400;color:var(--primary);"></span></label>
+        <input type="date" id="evtDate" onchange="updateDateWeekday()" style="padding:9px 10px;">
+      </div>
+      <div class="form-group" id="weekdayMultiGroup" style="display:none;">
+        <label style="margin-bottom:4px;">快速多天 <span style="font-weight:400;color:var(--text-secondary);font-size:11px;">（勾选即在本周所选日各加一条）</span></label>
+        <div class="weekday-chips" id="weekdayChips">
+          <label class="wd-chip"><input type="checkbox" value="0" onchange="onWeekdayChipChange()"><span>周一</span></label>
+          <label class="wd-chip"><input type="checkbox" value="1" onchange="onWeekdayChipChange()"><span>周二</span></label>
+          <label class="wd-chip"><input type="checkbox" value="2" onchange="onWeekdayChipChange()"><span>周三</span></label>
+          <label class="wd-chip"><input type="checkbox" value="3" onchange="onWeekdayChipChange()"><span>周四</span></label>
+          <label class="wd-chip"><input type="checkbox" value="4" onchange="onWeekdayChipChange()"><span>周五</span></label>
+          <label class="wd-chip"><input type="checkbox" value="5" onchange="onWeekdayChipChange()"><span>周六</span></label>
+          <label class="wd-chip"><input type="checkbox" value="6" onchange="onWeekdayChipChange()"><span>周日</span></label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>开始时间</label>
+          <input type="time" id="evtStart" value="09:00" onchange="calcEndTime()">
+        </div>
+        <div class="form-group">
+          <label>持续时间</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <select id="evtDurH" onchange="calcEndTime()" style="flex:1;">
+              <option value="0">0小时</option><option value="1" selected>1小时</option>
+              <option value="2">2小时</option><option value="3">3小时</option>
+              <option value="4">4小时</option>
+              <option value="5">5小时</option><option value="6">6小时</option>
+            </select>
+            <select id="evtDurM" onchange="calcEndTime()" style="flex:1;">
+              <option value="0" selected>0分钟</option><option value="15">15分钟</option>
+              <option value="30">30分钟</option><option value="45">45分钟</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:-4px;">
+        <span style="font-size:12px;color:var(--text-secondary);">预计结束：<strong id="calcEndDisplay" style="color:var(--primary);">10:00</strong></span>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="evtWeekly">
+        <label for="evtWeekly">每周重复（固定会议）</label>
+      </div>
+      <div class="form-group">
+        <label>颜色标记</label>
+        <div class="color-options" id="colorOptions"></div>
+      </div>
+      <div class="form-group">
+        <label>备注（可选）</label>
+        <textarea id="evtNote" placeholder="会议室、参会人等..." rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger hidden" id="btnDelete" onclick="deleteEvent()">删除日程</button>
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="btnSave" onclick="saveEvent()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Smart Input Modal -->
+<div class="modal-overlay hidden" id="smartModalOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h3>智能添加</h3>
+      <button class="modal-close" onclick="closeSmartModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <textarea class="smart-textarea" id="smartInput" placeholder="粘贴日程信息，自动识别..."></textarea>
+      <div class="smart-hint">支持：周几 + 时间 + 日程名（备注）。多条用换行或逗号分隔。</div>
+      <div class="parse-results" id="parseResults">
+        <table id="parseTable"></table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSmartModal()">取消</button>
+      <button class="btn btn-primary" id="btnSmartAdd" onclick="confirmSmartAdd()" style="display:none;">全部添加</button>
+      <button class="btn btn-smart" onclick="doParse()">识别</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm dialog -->
+<div class="modal-overlay hidden" id="deleteDialog" style="z-index:9999;">
+  <div class="modal confirm-dialog">
+    <div class="modal-header" style="border-bottom:none;">
+      <span class="modal-title">删除确认</span>
+      <button class="modal-close" onclick="document.getElementById('deleteDialog').classList.add('hidden')">✕</button>
+    </div>
+    <p id="deleteDialogMsg" style="margin:0 0 16px;font-size:14px;color:var(--text-secondary);"></p>
+    <div class="modal-footer">
+      <button class="btn btn-danger" id="deleteDialogThisWeek" onclick="doDelete(pendingDeleteId, false);document.getElementById('deleteDialog').classList.add('hidden');"></button>
+      <button class="btn btn-danger" id="deleteDialogAll" onclick="doDelete(pendingDeleteId, true);document.getElementById('deleteDialog').classList.add('hidden');"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== DATA (WebSocket 实时协作 — 服务器即数据库) ====================
+const COLORS = ['#4a90d9','#7ec8a0','#e8a87c','#c59ad4','#f5a97f','#8db5e6','#a4c639','#e07b7b','#64b5c9','#c9a0dc'];
+const HOUR_START = 8;
+const HOUR_END = 22;
+const TOTAL_HOURS = HOUR_END - HOUR_START;
+const ROW_HEIGHT = 80;
+
+let currentMonday = getMonday(new Date());
+let events = [];
+let editingId = null;
+let selectedColor = COLORS[0];
+let pendingDeleteId = null;
+let isOnline = false;
+let syncingRemote = false; // 防止本地修改触发反弹
+
+// ==================== WEBSOCKET ====================
+var ws = null;
+var wsReconnectTimer = null;
+var wsMyId = '';
+
+function connectWS() {
+  var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var url = protocol + '//' + location.host;
+  try {
+    ws = new WebSocket(url);
+  } catch(e) {
+    setOnline(false);
+    scheduleReconnect();
+    return;
+  }
+
+  ws.onopen = function() {
+    setOnline(true);
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  };
+
+  ws.onmessage = function(e) {
+    try {
+      var msg = JSON.parse(e.data);
+      if (msg.type === 'init') {
+        events = Array.isArray(msg.events) ? msg.events : [];
+        wsMyId = msg.clientId || '';
+        fallbackLocalSave();
+        render();
+      } else if (msg.type === 'sync') {
+        if (msg.source === wsMyId) return;
+        syncingRemote = true;
+        events = Array.isArray(msg.events) ? msg.events : [];
+        fallbackLocalSave();
+        render();
+        syncingRemote = false;
+      }
+    } catch(err) {
+      console.error('WS msg error:', err);
+    }
+  };
+
+  ws.onclose = function() {
+    setOnline(false);
+    scheduleReconnect();
+  };
+
+  ws.onerror = function() {
+    ws.close();
+  };
+}
+
+function scheduleReconnect() {
+  if (wsReconnectTimer) return;
+  wsReconnectTimer = setTimeout(function() {
+    wsReconnectTimer = null;
+    connectWS();
+  }, 2000);
+}
+
+function saveEvents() {
+  fallbackLocalSave();
+  if (syncingRemote) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'update', events: events }));
+  }
+}
+
+function setOnline(status) {
+  isOnline = status;
+  var el = document.getElementById('connStatus');
+  if (!el) return;
+  if (status) {
+    el.textContent = '● 在线';
+    el.style.color = '#4caf50';
+    el.style.background = '#e8f5e9';
+  } else {
+    el.textContent = '● 离线';
+    el.style.color = '#ff9800';
+    el.style.background = '#fff3e0';
+  }
+}
+
+function loadEvents() {
+  connectWS();
+  // WebSocket 连接后服务器会推送数据，先加载本地缓存显示
+  fallbackLocalLoad();
+  render();
+}
+
+function fallbackLocalLoad() {
+  try {
+    var raw = localStorage.getItem('schedule_events');
+    events = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(events)) events = [];
+  } catch(e) { events = []; }
+}
+
+function fallbackLocalSave() {
+  localStorage.setItem('schedule_events', JSON.stringify(events));
+}
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+
+function formatDate(d) {
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${m}月${day}日`;
+}
+
+function dateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+// ==================== RENDER ====================
+function getWeekDates() {
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(currentMonday);
+    d.setDate(d.getDate() + i);
+    dates.push(d);
+  }
+  return dates;
+}
+
+function render() {
+  renderHeader();
+  renderGrid();
+  renderEvents();
+}
+
+function renderHeader() {
+  const weekDates = getWeekDates();
+  const endDate = new Date(currentMonday);
+  endDate.setDate(endDate.getDate() + 6);
+  document.getElementById('weekLabel').textContent = 
+    `${currentMonday.getFullYear()}年 ${formatDate(currentMonday)} — ${formatDate(endDate)}`;
+}
+
+function renderGrid() {
+  const gridTable = document.getElementById('gridTable');
+  const weekDates = getWeekDates();
+  const today = dateStr(new Date());
+
+  let html = '';
+  // Header row
+  html += '<div class="day-header"></div>'; // time column header
+  const dayNames = ['一','二','三','四','五','六','日'];
+  for (let i = 0; i < 7; i++) {
+    const isToday = dateStr(weekDates[i]) === today;
+    html += `<div class="day-header${isToday ? ' today' : ''}">
+      <div class="day-name">周${dayNames[i]}</div>
+      <div class="day-num">${weekDates[i].getDate()}</div>
+    </div>`;
+  }
+
+  // Time rows
+  for (let h = HOUR_START; h < HOUR_END; h++) {
+    html += `<div class="time-cell">${String(h).padStart(2,'0')}:00</div>`;
+    for (let d = 0; d < 7; d++) {
+      const isTodayCol = dateStr(weekDates[d]) === today;
+      html += `<div class="day-cell${isTodayCol ? ' today-col' : ''}" 
+        data-day="${d}" data-hour="${h}" 
+        onclick="onCellClick(${d}, '${String(h).padStart(2,'0')}:00')"></div>`;
+    }
+  }
+
+  gridTable.innerHTML = html;
+
+  // Update empty hint
+  const hasEvents = events.some(e => isEventInWeek(e));
+  document.getElementById('emptyHint').style.display = hasEvents ? 'none' : 'block';
+}
+
+function isEventInWeek(evt) {
+  if (evt.weekly) {
+    // Only show for this week and future, not past weeks
+    const weekMonday = currentMonday;
+    const thisWeekMonday = getMonday(new Date());
+    if (weekMonday < thisWeekMonday) return false;
+    return true;
+  }
+  if (!evt.date) return false;
+  const weekDates = getWeekDates();
+  return weekDates.some(d => dateStr(d) === evt.date);
+}
+
+function renderEvents() {
+  const layer = document.getElementById('eventsLayer');
+  const gridTable = document.getElementById('gridTable');
+  if (!gridTable) return;
+
+  // Use offset dimensions for consistent positioning within scroll container
+  const gridWidth = gridTable.offsetWidth;
+  const timeColWidth = 80;
+  const dayColWidth = (gridWidth - timeColWidth) / 7;
+  // Header row: get actual height from first day-header
+  const firstHeader = gridTable.querySelector('.day-header:nth-child(2)');
+  const headerHeight = firstHeader ? firstHeader.offsetHeight : 70;
+
+  // Collect events for this week, grouped by day
+  const weekDates = getWeekDates();
+  const dayEvents = Array.from({length: 7}, () => []);
+
+  for (const evt of events) {
+    let targetDay = evt.day;
+    let showDate = null;
+
+    if (evt.weekly) {
+      // Only show for this week and future weeks
+      if (currentMonday < getMonday(new Date())) continue;
+      // Skip if this week is excluded
+      if (evt.excludeDates && evt.excludeDates.includes(dateStr(currentMonday))) continue;
+      showDate = weekDates[targetDay];
+    } else if (evt.date) {
+      // Check if this event's date falls in current week
+      const evtDate = new Date(evt.date + 'T00:00:00');
+      const idx = weekDates.findIndex(d => dateStr(d) === evt.date);
+      if (idx !== -1) {
+        targetDay = idx;
+        showDate = weekDates[idx];
+      } else {
+        continue;
+      }
+    } else {
+      continue;
+    }
+
+    const [sh, sm] = (evt.startTime || '09:00').split(':').map(Number);
+    const [eh, em] = (evt.endTime || '10:00').split(':').map(Number);
+    const startMinutes = sh * 60 + sm;
+    const endMinutes = eh * 60 + em;
+    if (endMinutes <= startMinutes) continue;
+
+    dayEvents[targetDay].push({
+      ...evt,
+      startMinutes,
+      endMinutes,
+      targetDay,
+      showDate
+    });
+  }
+
+  // Sort each day's events by start time
+  for (let d = 0; d < 7; d++) {
+    dayEvents[d].sort((a,b) => a.startMinutes - b.startMinutes);
+  }
+
+  // Detect overlaps and assign columns
+  for (let d = 0; d < 7; d++) {
+    const evts = dayEvents[d];
+    // Build overlap groups
+    const groups = [];
+    for (const e of evts) {
+      let placed = false;
+      for (const g of groups) {
+        // Check if overlaps with any event in this group
+        const overlaps = g.some(ge => 
+          e.startMinutes < ge.endMinutes && e.endMinutes > ge.startMinutes
+        );
+        if (overlaps) {
+          g.push(e);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) groups.push([e]);
+    }
+
+    for (const g of groups) {
+      // Assign columns to events in this group
+      // Sort by start time, then assign columns greedily
+      g.sort((a,b) => a.startMinutes - b.startMinutes);
+      const columns = []; // each entry: endMinutes
+      for (const e of g) {
+        let col = 0;
+        while (col < columns.length && columns[col] > e.startMinutes) {
+          col++;
+        }
+        columns[col] = e.endMinutes;
+        e._col = col;
+      }
+      const totalCols = columns.length;
+      for (const e of g) {
+        e._totalCols = totalCols;
+      }
+    }
+  }
+
+  // Build HTML
+  let html = '';
+  for (let d = 0; d < 7; d++) {
+    for (const e of dayEvents[d]) {
+      const totalCols = e._totalCols || 1;
+      const col = e._col || 0;
+
+      const startOffset = (e.startMinutes - HOUR_START * 60) / 60 * ROW_HEIGHT;
+      const height = (e.endMinutes - e.startMinutes) / 60 * ROW_HEIGHT;
+      const left = timeColWidth + d * dayColWidth + (col / totalCols) * dayColWidth;
+      const width = dayColWidth / totalCols - 4;
+
+      const startStr = e.startTime.substring(0,5);
+      const endStr = e.endTime.substring(0,5);
+      const durationMin = e.endMinutes - e.startMinutes;
+      const isCompact = durationMin <= 15;
+      const isOverlap = totalCols > 1;
+      const hasNote = !isCompact && !isOverlap && !!e.note;
+
+      // Determine text color
+      const bgColor = e.color || COLORS[0];
+      const isLight = isLightColor(bgColor);
+
+      html += `<div class="event-block${isCompact ? ' compact' : ''}${isOverlap ? ' is-overlap' : ''}${hasNote ? ' has-note' : ''}${e.weekly ? ' weekly-tag' : ''}" 
+        style="
+          top: ${headerHeight + startOffset}px;
+          left: ${left}px;
+          width: ${Math.max(width, 50)}px;
+          height: ${Math.max(height, isCompact ? 20 : 28)}px;
+          background: ${bgColor};
+          border-left-color: ${darken(bgColor, 0.2)};
+          color: ${isLight ? '#333' : '#fff'};
+        "
+        onclick="openEditModal('${e.id}')"
+        title="${e.title} | ${startStr}-${endStr}${e.note ? ' | ' + e.note : ''}${e.weekly ? ' | 每周重复' : ''}"
+      >
+        <div class="evt-time-col"><span class="t-start">${startStr}</span><span class="t-dash">—</span><span class="t-end">${endStr}</span></div>
+        <div class="evt-body">
+          <span class="event-title">${escapeHtml(e.title)}</span>
+          ${e.note ? `<span class="event-note">${escapeHtml(e.note)}</span>` : ''}
+        </div>
+      </div>`;
+    }
+  }
+
+  layer.innerHTML = html;
+  // Match layer dimensions to grid table so all areas are clickable
+  layer.style.width = gridWidth + 'px';
+  layer.style.height = (headerHeight + TOTAL_HOURS * ROW_HEIGHT) + 'px';
+}
+
+function isLightColor(hex) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150;
+}
+
+function darken(hex, amount) {
+  const r = Math.round(parseInt(hex.slice(1,3), 16) * (1 - amount));
+  const g = Math.round(parseInt(hex.slice(3,5), 16) * (1 - amount));
+  const b = Math.round(parseInt(hex.slice(5,7), 16) * (1 - amount));
+  return '#' + [r,g,b].map(v => Math.max(0, v).toString(16).padStart(2,'0')).join('');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ==================== INTERACTIONS ====================
+function onCellClick(day, time) {
+  const weekDates = getWeekDates();
+  const date = weekDates[day];
+  
+  openAddModal();
+  document.getElementById('evtDate').value = dateStr(date);
+  document.getElementById('evtStart').value = time;
+  document.getElementById('evtDurH').value = '1';
+  document.getElementById('evtDurM').value = '0';
+  updateDateWeekday();
+  calcEndTime();
+}
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '添加日程';
+  document.getElementById('btnDelete').classList.add('hidden');
+  document.getElementById('evtTitle').value = '';
+  document.getElementById('evtStart').value = '09:00';
+  document.getElementById('evtDurH').value = '1';
+  document.getElementById('evtDurM').value = '0';
+  document.getElementById('evtWeekly').checked = false;
+  document.getElementById('evtNote').value = '';
+  
+  const today = new Date();
+  document.getElementById('evtDate').value = dateStr(today);
+  
+  // Reset multi-day chips
+  document.getElementById('weekdayMultiGroup').style.display = 'none';
+  document.querySelectorAll('#weekdayChips input').forEach(cb => cb.checked = false);
+  updateSaveHint();
+  
+  selectedColor = COLORS[0];
+  renderColorOptions();
+  updateDateWeekday();
+  calcEndTime();
+  
+  document.getElementById('modalOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('evtTitle').focus(), 100);
+}
+
+function openEditModal(id) {
+  const evt = events.find(e => e.id === id);
+  if (!evt) return;
+  
+  editingId = id;
+  document.getElementById('modalTitle').textContent = '编辑日程';
+  document.getElementById('btnDelete').classList.remove('hidden');
+  document.getElementById('evtTitle').value = evt.title;
+  document.getElementById('evtDate').value = evt.date || dateStr(new Date());
+  document.getElementById('evtStart').value = evt.startTime;
+  document.getElementById('evtWeekly').checked = !!evt.weekly;
+  document.getElementById('evtNote').value = evt.note || '';
+  selectedColor = evt.color || COLORS[0];
+  
+  // Hide multi-day chips in edit mode
+  document.getElementById('weekdayMultiGroup').style.display = 'none';
+  updateSaveHint();
+  
+  // Compute duration from start/end time
+  const [sh, sm] = (evt.startTime || '09:00').split(':').map(Number);
+  const [eh, em] = (evt.endTime || '10:00').split(':').map(Number);
+  let durMin = (eh * 60 + em) - (sh * 60 + sm);
+  if (durMin < 0) durMin = 60;
+  const durH = Math.floor(durMin / 60);
+  const durM = durMin % 60;
+  document.getElementById('evtDurH').value = Math.min(durH, 6);
+  // Round minutes to nearest option: 0, 15, 30, 45
+  const mOpts = [0, 15, 30, 45];
+  let closestM = 0;
+  for (const mo of mOpts) { if (Math.abs(mo - durM) < Math.abs(closestM - durM)) closestM = mo; }
+  document.getElementById('evtDurM').value = closestM;
+  
+  renderColorOptions();
+  updateDateWeekday();
+  calcEndTime();
+  
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.add('hidden');
+  editingId = null;
+}
+
+function saveEvent() {
+  const title = document.getElementById('evtTitle').value.trim();
+  if (!title) { showToast('请输入日程名称'); return; }
+  
+  const dateVal = document.getElementById('evtDate').value;
+  const startTime = document.getElementById('evtStart').value;
+  const durH = parseInt(document.getElementById('evtDurH').value);
+  const durM = parseInt(document.getElementById('evtDurM').value);
+  const weekly = document.getElementById('evtWeekly').checked;
+  const note = document.getElementById('evtNote').value.trim();
+  
+  if (!dateVal) { showToast('请选择日期'); return; }
+  if (!startTime) { showToast('请选择开始时间'); return; }
+  if (durH === 0 && durM === 0) { showToast('持续时间不能为0'); return; }
+
+  // Compute end time
+  const [sh, sm] = startTime.split(':').map(Number);
+  const totalMin = sh * 60 + sm + durH * 60 + durM;
+  const eh = Math.floor(totalMin / 60) % 24;
+  const em = totalMin % 60;
+  const endTime = `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+
+  // Get target dates: either multi-day chips or single date
+  const selectedWDs = editingId ? [] : getSelectedWeekdays();
+  let targetDates = [];
+
+  if (selectedWDs.length > 0) {
+    // Use weekdays: find dates in current week
+    const weekDates = getWeekDates();
+    for (const wd of selectedWDs) {
+      targetDates.push({ day: wd, date: dateStr(weekDates[wd]) });
+    }
+  } else {
+    // Single date from date picker
+    const d = new Date(dateVal + 'T00:00:00');
+    const jsDay = d.getDay();
+    const day = jsDay === 0 ? 6 : jsDay - 1;
+    targetDates.push({ day, date: dateVal });
+  }
+
+  if (editingId) {
+    const idx = events.findIndex(e => e.id === editingId);
+    if (idx !== -1) {
+      const oldColor = events[idx].color;
+      events[idx] = {
+        ...events[idx],
+        title, day: targetDates[0].day, date: targetDates[0].date, startTime, endTime, weekly, note, color: selectedColor
+      };
+      if (oldColor !== selectedColor) {
+        syncSameNameColors(title, selectedColor);
+      }
+    }
+  } else {
+    // When adding new meeting, inherit color from existing same-name meetings
+    const existingColorEvent = events.find(e => e.title === title);
+    const finalColor = existingColorEvent ? existingColorEvent.color : selectedColor;
+    for (const td of targetDates) {
+      events.push({
+        id: 'evt_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+        title, day: td.day, date: td.date, startTime, endTime, weekly, note, color: finalColor
+      });
+    }
+    if (targetDates.length > 1) {
+      showToast(`已添加 ${targetDates.length} 天`);
+    }
+  }
+
+  saveEvents();
+  closeModal();
+  render();
+}
+
+function deleteEvent() {
+  if (!editingId) return;
+  const evt = events.find(e => e.id === editingId);
+  if (!evt) return;
+
+  if (evt.weekly) {
+    pendingDeleteId = editingId;
+    closeModal();
+    const weekMondayStr = dateStr(getMonday(new Date()));
+    document.getElementById('deleteDialogMsg').textContent = 
+      `「${evt.title}」是每周固定日程，要如何处理？`;
+    document.getElementById('deleteDialogThisWeek').textContent = '只删本周';
+    document.getElementById('deleteDialogAll').textContent = '全部删除';
+    document.getElementById('deleteDialog').classList.remove('hidden');
+    return;
+  }
+
+  doDelete(editingId, true);
+}
+
+function doDelete(id, allWeeks) {
+  if (allWeeks) {
+    events = events.filter(e => e.id !== id);
+  } else {
+    // Only skip this week: add exclude date
+    const evt = events.find(e => e.id === id);
+    if (evt) {
+      const thisWeekMondayStr = dateStr(currentMonday);
+      if (!evt.excludeDates) evt.excludeDates = [];
+      evt.excludeDates.push(thisWeekMondayStr);
+    }
+  }
+  saveEvents();
+  closeModal();
+  render();
+  showToast('已删除');
+  pendingDeleteId = null;
+}
+
+function renderColorOptions() {
+  const container = document.getElementById('colorOptions');
+  container.innerHTML = COLORS.map(c => 
+    `<div class="color-dot${c === selectedColor ? ' active' : ''}" 
+      style="background:${c}" 
+      onclick="selectColor('${c}')" title="${c}"></div>`
+  ).join('');
+}
+
+function selectColor(color) {
+  selectedColor = color;
+  renderColorOptions();
+}
+
+function syncSameNameColors(title, color) {
+  let changed = false;
+  events.forEach(e => {
+    if (e.title === title && e.color !== color) {
+      e.color = color;
+      changed = true;
+    }
+  });
+  if (changed) saveEvents();
+}
+
+// ==================== DATE / TIME HELPERS ====================
+function updateDateWeekday() {
+  const dateVal = document.getElementById('evtDate').value;
+  if (!dateVal) return;
+  const d = new Date(dateVal + 'T00:00:00');
+  const dayNames = ['周日','周一','周二','周三','周四','周五','周六'];
+  document.getElementById('dateWeekday').textContent = dayNames[d.getDay()];
+  // Show multi-day chips in add mode only
+  if (!editingId) {
+    document.getElementById('weekdayMultiGroup').style.display = 'block';
+  }
+}
+
+function onWeekdayChipChange() {
+  // Updates the save button text hint
+  updateSaveHint();
+}
+
+function getSelectedWeekdays() {
+  const chips = document.querySelectorAll('#weekdayChips input[type=checkbox]');
+  const selected = [];
+  chips.forEach(cb => { if (cb.checked) selected.push(parseInt(cb.value)); });
+  return selected;
+}
+
+function updateSaveHint() {
+  const btn = document.getElementById('btnSave');
+  const wds = getSelectedWeekdays();
+  if (wds.length > 1) {
+    btn.textContent = '批量添加（' + wds.length + '天）';
+  } else {
+    btn.textContent = '保存';
+  }
+}
+
+function calcEndTime() {
+  const startTime = document.getElementById('evtStart').value;
+  const durH = parseInt(document.getElementById('evtDurH').value) || 0;
+  const durM = parseInt(document.getElementById('evtDurM').value) || 0;
+  if (!startTime) return;
+  
+  const [h, m] = startTime.split(':').map(Number);
+  const totalMin = h * 60 + m + durH * 60 + durM;
+  const eh = Math.floor(totalMin / 60) % 24;
+  const em = totalMin % 60;
+  document.getElementById('calcEndDisplay').textContent = 
+    `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+}
+
+// ==================== NAVIGATION ====================
+function navWeek(delta) {
+  currentMonday.setDate(currentMonday.getDate() + delta * 7);
+  render();
+}
+
+function goToday() {
+  currentMonday = getMonday(new Date());
+  render();
+}
+
+// ==================== STANDALONE WINDOW ====================
+// Detect if already in standalone window (opened via popup)
+if (window.name === '_schedule_standalone') {
+  document.getElementById('btnStandalone').style.display = 'none';
+}
+
+function openStandalone() {
+  const w = window.open(window.location.href, '_schedule_standalone',
+    'width=1300,height=850,location=no,toolbar=no,menubar=no,status=no,scrollbars=yes,resizable=yes');
+  if (w) {
+    w.name = '_schedule_standalone';
+  }
+}
+
+// ==================== SMART INPUT ====================
+let smartParsed = [];
+
+function openSmartModal() {
+  document.getElementById('smartInput').value = '';
+  document.getElementById('parseResults').style.display = 'none';
+  document.getElementById('btnSmartAdd').style.display = 'none';
+  smartParsed = [];
+  document.getElementById('smartModalOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('smartInput').focus(), 100);
+}
+
+function closeSmartModal() {
+  document.getElementById('smartModalOverlay').classList.add('hidden');
+}
+
+function doParse() {
+  const text = document.getElementById('smartInput').value.trim();
+  if (!text) { showToast('请粘贴日程信息'); return; }
+  smartParsed = parseSmartText(text);
+  if (smartParsed.length === 0) { showToast('未识别到日程，请检查格式'); return; }
+  renderParseResults();
+}
+
+function parseSmartText(text) {
+  const results = [];
+  const lines = text.split(/[\n\r]+/).filter(l => l.trim());
+  const dayMap = { '一': 0, '二': 1, '三': 2, '四': 3, '五': 4, '六': 5, '日': 6, '天': 6 };
+  const dayNames = ['周一','周二','周三','周四','周五','周六','周日'];
+
+  for (let line of lines) {
+    line = line.trim();
+    if (!line) continue;
+    // Remove leading emoji / markers
+    line = line.replace(/^[📌🔔📅⏰🗓✔✅📍]\s*(固定日程[；;]?\s*)?/, '').trim();
+    if (!line) continue;
+
+    // Extract note in parentheses
+    let note = '';
+    line = line.replace(/[（(]([^）)]+)[）)]/, (m, n) => { note = n.trim(); return ''; });
+    line = line.trim();
+
+    // Detect time
+    let time = '09:00';
+    // Pattern: 11点, 11点30, 上午11点, 下午3点, 10:00, 10：00
+    const timeMatch = line.match(/(上午|下午)?(\d{1,2})[点时：:](\d{0,2})/);
+    if (timeMatch) {
+      let pre = timeMatch[1] || '';
+      let h = parseInt(timeMatch[2]);
+      const m = timeMatch[3] ? parseInt(timeMatch[3]) : 0;
+      if (pre === '下午' && h < 12) h += 12;
+      if (pre === '上午' && h === 12) h = 0;
+      time = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      // Remove matched time part
+      line = line.replace(timeMatch[0], '').trim();
+      // Also remove the pre text if it stayed
+      line = line.replace(/^(上午|下午)/, '').trim();
+    }
+
+    // Remove common connectors after time: 开, 有, 要, ·
+    line = line.replace(/^[开有要]\s*/, '').trim();
+
+    // Detect weekday patterns: 周一/三/五, 周二, 周五
+    let weekDays = [];
+    let day = null;
+    let isWeekly = false;
+
+    const weekSegment = line.match(/周[一二三四五六日天][\/／、,\s]*[一二三四五六日天]*[\/／、,\s]*[一二三四五六日天]*/);
+    if (weekSegment) {
+      const dayChars = weekSegment[0].match(/[一二三四五六日天]/g);
+      if (dayChars) {
+        weekDays = [...new Set(dayChars.map(c => dayMap[c]))];
+        day = weekDays[0];
+        isWeekly = weekDays.length > 1;
+        line = line.replace(weekSegment[0], '').trim();
+      }
+    }
+
+    // Clean separators: · — - ：: ,
+    line = line.replace(/^[·—\-：:,\s]+/, '').replace(/[·—\-：:,\s]+$/, '').trim();
+
+    const title = line || '未命名日程';
+
+    if (day !== null) {
+      if (weekDays.length > 1) {
+        // Split multi-day into separate items (e.g. 周一/三/五 → 3 items)
+        for (const wd of weekDays) {
+          results.push({ day: wd, time, title, note, weekly: false, weekDays: [] });
+        }
+      } else {
+        results.push({ day, time, title, note, weekly: isWeekly, weekDays });
+      }
+    } else {
+      results.push({ day: null, time, title, note, weekly: false, weekDays: [] });
+    }
+  }
+
+  return results;
+}
+
+function renderParseResults() {
+  const dayNames = ['周一','周二','周三','周四','周五','周六','周日'];
+  let html = '<tr><th>日期</th><th>时间</th><th>名称</th><th>备注</th><th>类型</th><th style="width:30px;"></th></tr>';
+
+  for (let i = 0; i < smartParsed.length; i++) {
+    const r = smartParsed[i];
+    let dayStr;
+    if (r.day !== null) {
+      dayStr = dayNames[r.day];
+    } else {
+      dayStr = '今天';
+    }
+    const typeTag = r.weekly
+      ? '<span class="parse-tag weekly">每周</span>'
+      : '<span class="parse-tag once">单次</span>';
+    html += `<tr onclick="openSmartEdit(${i})">
+      <td>${dayStr}</td>
+      <td><strong>${r.time}</strong></td>
+      <td>${escapeHtml(r.title)}</td>
+      <td style="color:var(--text-secondary);">${r.note || '—'}</td>
+      <td>${typeTag}</td>
+      <td><span class="parse-row-del" onclick="event.stopPropagation();deleteSmartItem(${i})" title="删除此条">✕</span></td>
+    </tr>`;
+  }
+
+  document.getElementById('parseTable').innerHTML = html;
+  document.getElementById('parseResults').style.display = 'block';
+  document.getElementById('btnSmartAdd').style.display = 'inline-block';
+}
+
+function deleteSmartItem(index) {
+  smartParsed.splice(index, 1);
+  if (smartParsed.length === 0) {
+    document.getElementById('parseResults').style.display = 'none';
+    document.getElementById('btnSmartAdd').style.display = 'none';
+    showToast('全部删除');
+  } else {
+    renderParseResults();
+  }
+}
+
+function openSmartEdit(index) {
+  const r = smartParsed[index];
+  // Remove from smartParsed so user doesn't double-add
+  smartParsed.splice(index, 1);
+  if (smartParsed.length === 0) {
+    document.getElementById('parseResults').style.display = 'none';
+    document.getElementById('btnSmartAdd').style.display = 'none';
+  } else {
+    renderParseResults();
+  }
+
+  // Open main add modal pre-filled with parsed data
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '添加日程（智能）';
+  document.getElementById('btnDelete').classList.add('hidden');
+  document.getElementById('evtTitle').value = r.title;
+  document.getElementById('evtWeekly').checked = !!r.weekly;
+  document.getElementById('evtNote').value = r.note || '';
+  document.getElementById('evtStart').value = r.time;
+
+  // Set date
+  const weekDates = getWeekDates();
+  let targetDate;
+  if (r.day !== null) {
+    targetDate = new Date(currentMonday);
+    targetDate.setDate(targetDate.getDate() + r.day);
+  } else {
+    targetDate = new Date();
+  }
+  document.getElementById('evtDate').value = dateStr(targetDate);
+
+  // Set default duration: 30 min
+  document.getElementById('evtDurH').value = '0';
+  document.getElementById('evtDurM').value = '30';
+
+  // Pick color: if existing meeting with same title, inherit its color
+  const existing = events.find(e => e.title === r.title);
+  selectedColor = existing ? existing.color : COLORS[0];
+
+  // Hide multi-day chips and reset save button
+  document.getElementById('weekdayMultiGroup').style.display = 'none';
+  document.querySelectorAll('#weekdayChips input').forEach(cb => cb.checked = false);
+  updateSaveHint();
+
+  renderColorOptions();
+  updateDateWeekday();
+  calcEndTime();
+
+  document.getElementById('modalOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('evtTitle').focus(), 100);
+}
+
+function confirmSmartAdd() {
+  if (smartParsed.length === 0) return;
+
+  const weekDates = getWeekDates();
+  const todayStr = dateStr(new Date());
+  const dayNames = ['周一','周二','周三','周四','周五','周六','周日'];
+
+  for (const r of smartParsed) {
+    let targetDay = r.day;
+    let dateVal;
+    let weekly = r.weekly;
+
+    // Inherit color from existing same-name meeting, else default blue
+    const existingColorEvent = events.find(e => e.title === r.title);
+    const color = existingColorEvent ? existingColorEvent.color : COLORS[0];
+
+    if (targetDay !== null) {
+      const targetDate = new Date(currentMonday);
+      targetDate.setDate(targetDate.getDate() + targetDay);
+      dateVal = dateStr(targetDate);
+    } else {
+      dateVal = todayStr;
+      const jsDay = new Date().getDay();
+      targetDay = jsDay === 0 ? 6 : jsDay - 1;
+      weekly = false;
+    }
+    events.push({
+      id: 'evt_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+      title: r.title,
+      day: targetDay,
+      date: dateVal,
+      startTime: r.time,
+      endTime: calcAddEndTime(r.time),
+      weekly,
+      note: r.note || '',
+      color
+    });
+  }
+
+  saveEvents();
+  closeSmartModal();
+  render();
+  showToast(`已添加 ${smartParsed.length} 条日程`);
+}
+
+function calcAddEndTime(startTime) {
+  const [h, m] = startTime.split(':').map(Number);
+  const totalMin = h * 60 + m + 30; // default 30 min
+  const eh = Math.floor(totalMin / 60) % 24;
+  const em = totalMin % 60;
+  return `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+}
+
+// ==================== UTILS ====================
+
+function showToast(msg) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2000);
+}
+
+// ==================== KEYBOARD ====================
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { closeModal(); closeSmartModal(); }
+  if (e.key === 'ArrowLeft' && !document.getElementById('modalOverlay').classList.contains('hidden') === false) {
+    // Only navigate weeks when modal is closed
+  }
+});
+
+// Modal overlay click to close
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+document.getElementById('smartModalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSmartModal();
+});
+
+// Enter to save in modal
+document.getElementById('modalOverlay').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+    saveEvent();
+  }
+});
+
+// Enter to parse in smart modal
+document.getElementById('smartModalOverlay').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && e.ctrlKey) {
+    doParse();
+  }
+});
+
+// ==================== INIT ====================
+loadEvents();
+
+// Re-render on resize for event positioning
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(renderEvents, 150);
+});
+</script>
+</body>
+</html>
